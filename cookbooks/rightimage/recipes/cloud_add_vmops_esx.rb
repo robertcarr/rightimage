@@ -227,8 +227,22 @@ bash "Install ovftools" do
   EOH
 end
 
-
-bash "Create stream optimized VMDK and ova file" do
-
+directory "#{bundled_image_path}/ova" do
+  action :create
 end
 
+node[:rightimage][:ovf][:filename] = `ls -1 #{bundled_image_path}/*.vmdk`
+node[:rightimage][:ovf][:vmdk_size] = `ls -l1 #{bundled_image_path}/*.vmdk | awk '{ print $5; }'`
+node[:rightimage][:ovf][:capacity] = "10"
+node[:rightimage][:ovf][:ostype] = "linux26other"
+
+template "#{bundled_image_path}/temp.ovf" do
+  source "ovf.erb"
+end
+
+bash "Create create vmdk and create ovf/ova files" do
+  code <<-EOH
+  ovftool #{bundled_image_path}/temp.ovf #{bundled_image_path}/ova/temp_name.ovf
+  tar -cvf #{bundled_image_path}/ova/temp_name.ova *
+ EOH
+end
