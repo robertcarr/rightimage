@@ -213,4 +213,22 @@ bash "convert image" do
   EOH
 end
 
+cookbook_file "/tmp/ovftool.sh" do
+  source "VMware-ovftool-2.0.1-260188-lin.x86_64.sh"
+end
+
+bash "Install ovftools" do
+  cwd "/tmp"
+  code <<-EOH
+    set -e
+    set -x
+    mkdir -p /tmp/ovftool
+    ovftool.sh --silent /tmp/ovftool AGREE_TO_EULA
+  EOH
+end
+
+
+bash "Create stream optimized VMDK and ova file" do
+
+end
 
