@@ -110,7 +110,7 @@ case rightimage[:cloud]
       set[:rightimage][:root_mount][:dev] = "/dev/vda1"
       set[:rightimage][:root_mount][:dump] = "1" 
       set[:rightimage][:root_mount][:fsck] = "1" 
-    when "esx"
+    when "esxi"
       rightimage[:host_packages] << " qemu grub"
       rightimage[:guest_packages] << " grub"
       set[:rightimage][:ephemeral_mount] = "/dev/sdb"
@@ -131,7 +131,14 @@ case rightimage[:cloud]
     when "5.4" 
       set[:rightimage][:kernel_id] = "2.6.18-164.15.1.el5.centos.plus"
       rightimage[:kernel_id] << "xen" if rightimage[:virtual_environment] == "xen"
+    when "lucid"
+      # TODO: Determine proper kernel id
+      # set[:rightimage][:kernel_id] = "<NEED_TO_SET_THIS"
+      set[:rightimage][:kernel_id] = "2.6.32-31-server"
+      rightimage[:kernel_id] << "kvm" if rightimage[:virtual_environment] == "kvm"
+      rightimage[:kernel_id] << "esxi" if rightimage[:virtual_environment] == "esxi"
     end
+  
 end
 
 # set rightscale stuff
