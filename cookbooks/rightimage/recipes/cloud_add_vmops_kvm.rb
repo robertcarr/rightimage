@@ -41,6 +41,11 @@ bash "create cloudstack-kvm loopback fs" do
     
     loopdev=#{loop_dev}
     loopmap=#{loop_map}
+    
+    [ -e "/dev/mapper/#{loopname}p1" ] && kpartx -d #{loop_dev}
+    losetup -a | grep #{loop_dev}
+    [ "$?" == "0" ] && losetup -d #{loop_dev}
+ 
     losetup $loopdev $target_raw_path
     
     sfdisk $loopdev << EOF
@@ -89,7 +94,11 @@ bash "setup grub" do
     target_mnt="#{target_mnt}"
     
     chroot $target_mnt mkdir -p /boot/grub
-    chroot $target_mnt cp -p /usr/share/grub/x86_64-redhat/* /boot/grub
+
+    if [ "#{node.rightimage.platform}" == "centos" ]; then 
+      chroot $target_mnt cp -p /usr/share/grub/x86_64-redhat/* /boot/grub
+    fi
+
     chroot $target_mnt ln -s /boot/grub/grub.conf /boot/grub/menu.lst
     
     echo "(hd0) #{node[:rightimage][:grub][:root_device]}" > $target_mnt/boot/grub/device.map
