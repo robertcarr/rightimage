@@ -58,6 +58,8 @@ bash "configure_image"  do
   code <<-EOH
     set -e
     set -x
+  
+    modprobe dm-mod
 
     if [ "#{node[:rightimage][:release]}" == "hardy" ]; then
       locale-gen en_US.UTF-8
@@ -94,14 +96,29 @@ EOS
     chmod +x /tmp/configure_script
     #{bootstrap_cmd} --exec=/tmp/configure_script
 
-    if [ "#{node[:rightimage][:release]}" == "lucid" ] || [ "#{node[:rightimage][:release]}" == "maverick" ] ;then
+loopback_device=/mnt/vmbuilder/$image_name
+  
+    if [ "#{node[:rightimage][:virtual_environment]}" == "kvm" ]; then
+      set +e
+      [ -e "/dev/mapper/loop5p1" ] && kpartx -d /dev/loop5
+      losetup -a | grep loop5
+      [ "$?" == "0" ] && losetup -d /dev/loop5
+      set -e
+      kvm_image=`basename $(ls -1 /mnt/vmbuilder/tmp*.qcow2)`
+      qemu-img convert -O raw /mnt/vmbuilder/$kvm_image /mnt/vmbuilder/root.img
+      losetup /dev/loop5 /mnt/vmbuilder/root.img
+      kpartx -a /dev/loop5
+      loopback_device=/dev/mapper/loop5p1
+    fi
+
+if ( [ "#{node[:rightimage][:release]}" == "lucid" ] || [ "#{node[:rightimage][:release]}" == "maverick" ] ) && [ "#{node[:rightimage][:virtual_environment]}" == "ec2" ]  ;then
       image_name=`cat /mnt/vmbuilder/xen.conf  | grep xvda1 | grep -v root  | cut -c 25- | cut -c -9`
     else
       image_name="root.img"
     fi
     random_dir=/tmp/rightimage-$RANDOM
     mkdir $random_dir
-    mount -o loop /mnt/vmbuilder/$image_name  $random_dir
+    mount -o loop $loopback_device  $random_dir
     umount #{node[:rightimage][:mount_dir]}/proc || true
     rm -rf #{node[:rightimage][:mount_dir]}
     mkdir -p #{node[:rightimage][:mount_dir]}
@@ -150,7 +167,7 @@ dpkg -i /tmp/linux-headers*.deb
 dpkg -i /tmp/linux-image*.deb
 EOS
 chmod +x #{node[:rightimage][:mount_dir]}/tmp/install_custom_kernel.sh
-chroot #{node[:rightimage][:mount_dir]} /tmp/install_custom_kernel.sh  
+#chroot #{node[:rightimage][:mount_dir]} /tmp/install_custom_kernel.sh  
 EOH
   end
 end
