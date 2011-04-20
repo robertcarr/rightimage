@@ -41,11 +41,12 @@ bash "create cloudstack-kvm loopback fs" do
     
     loopdev=#{loop_dev}
     loopmap=#{loop_map}
-    
+
+    set +e    
     [ -e "/dev/mapper/#{loop_name}p1" ] && kpartx -d #{loop_dev}
     losetup -a | grep #{loop_dev}
     [ "$?" == "0" ] && losetup -d #{loop_dev}
- 
+    set -e
     losetup $loopdev $target_raw_path
     
     sfdisk $loopdev << EOF
@@ -99,7 +100,7 @@ bash "setup grub" do
       chroot $target_mnt cp -p /usr/share/grub/x86_64-redhat/* /boot/grub
     fi
 
-    chroot $target_mnt ln -s /boot/grub/grub.conf /boot/grub/menu.lst
+    chroot $target_mnt ln -sf /boot/grub/grub.conf /boot/grub/menu.lst
     
     echo "(hd0) #{node[:rightimage][:grub][:root_device]}" > $target_mnt/boot/grub/device.map
     echo "" >> $target_mnt/boot/grub/device.map
