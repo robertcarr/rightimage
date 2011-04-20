@@ -52,6 +52,14 @@ end
 
 log "Configuring Image..."
 
+bash "Comment out ext4 in /etc/mke2fs.conf" do
+  code <<-EOH
+    set -e
+    set -x
+    sed -i '/ext4/,/}/ s/^/#/' /etc/mke2fs.conf 
+  EOH
+end
+
 bash "configure_image"  do
   user "root"
   cwd "/tmp"
@@ -131,6 +139,14 @@ if ( [ "#{node[:rightimage][:release]}" == "lucid" ] || [ "#{node[:rightimage][:
 
 EOH
   not_if "test -e /mnt/vmbuilder/root.img"
+end
+
+bash "Restore original ext4 in /etc/mke2fs.conf" do
+  code <<-EOH
+    set -e
+    set -x
+    sed -i '/ext4/,/}/ s/^#//' /etc/mke2fs.conf 
+  EOH
 end
 
 
