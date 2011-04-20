@@ -42,7 +42,7 @@ bash "create cloudstack-kvm loopback fs" do
     loopdev=#{loop_dev}
     loopmap=#{loop_map}
     
-    [ -e "/dev/mapper/#{loopname}p1" ] && kpartx -d #{loop_dev}
+    [ -e "/dev/mapper/#{loop_name}p1" ] && kpartx -d #{loop_dev}
     losetup -a | grep #{loop_dev}
     [ "$?" == "0" ] && losetup -d #{loop_dev}
  
