@@ -109,7 +109,7 @@ bash "setup grub" do
 (hd0) #{target_raw_path}
 EOF
 
-    if [ "#{rightimage.platform}" == "ubuntu" ]; then
+    if [ "#{node.rightimage.platform}" == "ubuntu" ]; then
       sbin_command="/usr/sbin/grub"
     else
       sbin_command="/sbin/grub"
@@ -131,8 +131,8 @@ bash "install kvm kernel" do
     set -x
     target_mnt=#{target_mnt}
 
-    if [ "#{rightimage.platform" == "centos" ]; then
-      # NOTE: The following should be needed when using ubuntu vmbuilder
+    if [ "#{node.rightimage.platform}" == "centos" ]; then
+      # The following should be needed when using ubuntu vmbuilder
       yum -c /tmp/yum.conf --installroot=$target_mnt -y install kmod-kvm
       rm -f $target_mnt/boot/initrd*
       chroot $target_mnt mkinitrd --with=ata_piix --with=virtio_blk --with=ext3 --with=virtio_pci --with=dm_mirror --with=dm_snapshot --with=dm_zero -v initrd-#{node[:rightimage][:kernel_id]} #{node[:rightimage][:kernel_id]}
@@ -148,8 +148,9 @@ bash "configure for cloudstack" do
     set -x
     target_mnt=#{target_mnt}
 
-    case "#{rightimage.platform}" in
-    "centos" )
+    case "#{node.rightimage.platform}" in
+    "centos")
+
       # clean out packages
       yum -c /tmp/yum.conf --installroot=$target_mnt -y clean all
 
@@ -165,7 +166,7 @@ bash "configure for cloudstack" do
       echo 'timeout 300;' > $target_mnt/etc/dhclient.conf
       ;;
 
-    "ubuntu" )
+    "ubuntu")
       # More to do for Ubuntu?
       echo 'timeout 300;' > $target_mnt/etc/dhcp3/dhclient.conf      
       ;;

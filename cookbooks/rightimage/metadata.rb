@@ -17,6 +17,7 @@ recipe "rightimage::rightscale_install", "installs rightscale"
 recipe "rightimage::cloud_add_ec2", "migrates the created image to ec2"
 recipe "rightimage::cloud_add_euca", "migrates the created image to eucalyptus" 
 recipe "rightimage::cloud_add_vmops", "adds requirements for cloudstack based on hypervisor choice"
+recipe "rightimage::cloud_add_esxi", "applies esxi transformations on an existing disk image"
 recipe "rightimage::cloud_add_raw", "migrates the create image to a raw file -- useful for new cloud development"
 recipe "rightimage::install_vhd-util", "install the vhd-util tool"
 recipe "rightimage::do_tag_images", "adds rightscale tags to images"
@@ -62,12 +63,12 @@ attribute "rightimage/release",
   
 attribute "rightimage/arch",
   :display_name => "arch",
-  :description => "the arch of the image to build",
+  :description => "the arch of the image to build (i386/x86_64)",
   :required => true
   
 attribute "rightimage/cloud",
   :display_name => "cloud",
-  :description => "the cloud that the image will reside",
+  :description => "the cloud that the image will reside (ec2, vmops, eucalyptus)",
   :required => true
   
 attribute "rightimage/region",
@@ -158,13 +159,13 @@ attribute "rightimage/debug",
 
 attribute "rightimage/install_mirror_date",
   :display_name => "install_mirror_date",
-  :description => "date to install from",
+  :description => "date to install from or 'latest'",
   :required => "optional",
   :recipes => [ "rightimage::base_centos" , "rightimage::default", "rightimage::build_image" , "rightimage::bootstrap_centos" ]
 
 attribute "rightimage/virtual_environment",
   :display_name => "Hypervisor",
-  :description => "Which hypervisor is this image for? ['xen'|'kvm']",
+  :description => "Which hypervisor is this image for? ['xen'|'kvm'|'esxi']",
   :required => "optional",
   :default => "xen"
 

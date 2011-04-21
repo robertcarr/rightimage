@@ -18,3 +18,12 @@ ruby_block "delete image id list" do
     id_list.clear
   end
 end
+
+bash "Remove stale devices" do
+  code <<-EOH
+    set +e
+#    [ -e "/dev/mapper/loop0p1" ] && kpartx -d /dev/loop0
+#    losetup -a | grep loop0
+#    [ "$?" == "0" ] && losetup -d /dev/loop0
+  EOH
+end
