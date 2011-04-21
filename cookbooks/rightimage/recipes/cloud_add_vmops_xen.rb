@@ -33,28 +33,7 @@ bash "create_vmops_image" do
   EOH
 end
 
-# insert grub conf
-template "#{destination_image_mount}/boot/grub/grub.conf" do 
-  source "grub.conf"
-  backup false 
-end
-
-
-# add fstab
-template "#{destination_image_mount}/etc/fstab" do
-  source "fstab.erb"
-  backup false
-end
-
-bash "mount proc" do 
-  code <<-EOH
-#!/bin/bash -ex
-    set -e 
-    set -x
-    mount_dir=#{destination_image_mount}
-    mount -t proc none $mount_dir/proc
-  EOH
-end
+include_recipe rightimage::proc_grub_fstab
 
 bash "install xen kernel" do 
   code <<-EOH
@@ -71,55 +50,8 @@ bash "install xen kernel" do
   EOH
 end
 
-bash "configure for cloudstack" do 
-  code <<-EOH
-#!/bin/bash -ex
-    set -e 
-    set -x
-    mount_dir=#{destination_image_mount}
-
-    # clean out packages
-    yum -c /tmp/yum.conf --installroot=$mount_dir -y clean all
-
-    # enable console access
-    echo "2:2345:respawn:/sbin/mingetty xvc0" >> $mount_dir/etc/inittab
-    echo "xvc0" >> $mount_dir/etc/securetty
-
-    # configure dns timeout 
-    echo 'timeout 300;' > $mount_dir/etc/dhclient.conf
-
-    mkdir -p $mount_dir/etc/rightscale.d
-    echo "vmops" > $mount_dir/etc/rightscale.d/cloud
-
-    rm ${mount_dir}/var/lib/rpm/__*
-    chroot $mount_dir rpm --rebuilddb
-  EOH
-end
-
-bash "unmount proc" do 
-  code <<-EOH
-#!/bin/bash -ex
-    set -e 
-    set -x
-    target_mnt=#{destination_image_mount}
-    umount -lf $target_mnt/proc
-  EOH
-end
-
-# Clean up guest image
-rightimage destination_image_mount do
-  action :sanitize
-end
-
-bash "unmount target filesystem" do 
-  code <<-EOH
-#!/bin/bash -ex
-    set -e 
-    set -x
-    target_mnt=#{destination_image_mount}    
-    umount -lf $target_mnt
-  EOH
-end
+include_recipe rightimage::helper_cloudstack_standard
+include_recipe rightimage::help_unmount_proc_and_filesystem
 
 bash "backup raw image" do 
   cwd File.dirname destination_image
