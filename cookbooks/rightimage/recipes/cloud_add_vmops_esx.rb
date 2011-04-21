@@ -2,7 +2,8 @@ class Chef::Resource::Bash
   include RightScale::RightImage::Helper
 end
 
-raise "ERROR: you must set your virtual_environment to esx!"  if node[:rightimage][:virtual_environment] != "esx"
+raise "ERROR: you must set your virtual_environment to esxi!"  if node[:rightimage][:virtual_environment] != "esxi"
+
 
 source_image = "#{node.rightimage.mount_dir}" 
 
@@ -10,7 +11,7 @@ target_raw = "target.raw"
 target_raw_path = "/mnt/#{target_raw}"
 target_mnt = "/mnt/target"
 
-bundled_image = "cloudstack_esx_dev40.vmdk"
+bundled_image = "cloudstack_esxi_dev40.vmdk"
 bundled_image_path = "/mnt/#{bundled_image}"
 
 loop_name="loop0"
@@ -19,7 +20,7 @@ loop_map="/dev/mapper/#{loop_name}p1"
 
 package "qemu"
 
-bash "create cloudstack-esx loopback fs" do 
+bash "create cloudstack-esxi loopback fs" do 
   code <<-EOH
     set -e 
     set -x
