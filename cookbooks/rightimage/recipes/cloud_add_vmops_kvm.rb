@@ -108,7 +108,14 @@ bash "setup grub" do
     cat > device.map <<EOF
 (hd0) #{target_raw_path}
 EOF
-    /sbin/grub --batch --device-map=device.map <<EOF
+
+    if [ "#{rightimage.platform}" == "ubuntu" ]; then
+      sbin_command="/usr/sbin/grub"
+    else
+      sbin_command="/sbin/grub"
+    fi
+
+    ${sbin_command} --batch --device-map=device.map <<EOF
 root (hd0,0)
 setup (hd0)
 quit
@@ -123,10 +130,14 @@ bash "install kvm kernel" do
     set -e 
     set -x
     target_mnt=#{target_mnt}
-    yum -c /tmp/yum.conf --installroot=$target_mnt -y install kmod-kvm
-    rm -f $target_mnt/boot/initrd*
-    chroot $target_mnt mkinitrd --with=ata_piix --with=virtio_blk --with=ext3 --with=virtio_pci --with=dm_mirror --with=dm_snapshot --with=dm_zero -v initrd-#{node[:rightimage][:kernel_id]} #{node[:rightimage][:kernel_id]}
-    mv $target_mnt/initrd-#{node[:rightimage][:kernel_id]}  $target_mnt/boot/.
+
+    if [ "#{rightimage.platform" == "centos" ]; then
+      # NOTE: The following should be needed when using ubuntu vmbuilder
+      yum -c /tmp/yum.conf --installroot=$target_mnt -y install kmod-kvm
+      rm -f $target_mnt/boot/initrd*
+      chroot $target_mnt mkinitrd --with=ata_piix --with=virtio_blk --with=ext3 --with=virtio_pci --with=dm_mirror --with=dm_snapshot --with=dm_zero -v initrd-#{node[:rightimage][:kernel_id]} #{node[:rightimage][:kernel_id]}
+      mv $target_mnt/initrd-#{node[:rightimage][:kernel_id]}  $target_mnt/boot/.
+    fi
   EOH
 end
 
@@ -137,21 +148,32 @@ bash "configure for cloudstack" do
     set -x
     target_mnt=#{target_mnt}
 
-    # clean out packages
-    yum -c /tmp/yum.conf --installroot=$target_mnt -y clean all
+    case "#{rightimage.platform}" in
+    "centos" )
+      # clean out packages
+      yum -c /tmp/yum.conf --installroot=$target_mnt -y clean all
 
-    # enable console access
-    #echo "2:2345:respawn:/sbin/mingetty tty2" >> $target_mnt/etc/inittab
-    #echo "tty2" >> $target_mnt/etc/securetty
+      # clean centos RPM data
+      rm ${target_mnt}/var/lib/rpm/__*
+      chroot $target_mnt rpm --rebuilddb
 
-    # configure dns timeout 
-    echo 'timeout 300;' > $target_mnt/etc/dhclient.conf
+      # enable console access
+      echo "2:2345:respawn:/sbin/mingetty tty2" >> $target_mnt/etc/inittab
+      echo "tty2" >> $target_mnt/etc/securetty
+
+      # configure dns timeout 
+      echo 'timeout 300;' > $target_mnt/etc/dhclient.conf
+      ;;
+
+    "ubuntu" )
+      # More to do for Ubuntu?
+      echo 'timeout 300;' > $target_mnt/etc/dhcp3/dhclient.conf      
+      ;;
+    esac
 
     mkdir -p $target_mnt/etc/rightscale.d
     echo "vmops" > $target_mnt/etc/rightscale.d/cloud
 
-    rm ${target_mnt}/var/lib/rpm/__*
-    chroot $target_mnt rpm --rebuilddb
 
   EOH
 end
