@@ -131,13 +131,20 @@ bash "install kvm kernel" do
     set -x
     target_mnt=#{target_mnt}
 
-    if [ "#{node.rightimage.platform}" == "centos" ]; then
+
+  case "#{node.rightimage.platform}" in 
+    "centos" )
       # The following should be needed when using ubuntu vmbuilder
       yum -c /tmp/yum.conf --installroot=$target_mnt -y install kmod-kvm
       rm -f $target_mnt/boot/initrd*
       chroot $target_mnt mkinitrd --with=ata_piix --with=virtio_blk --with=ext3 --with=virtio_pci --with=dm_mirror --with=dm_snapshot --with=dm_zero -v initrd-#{node[:rightimage][:kernel_id]} #{node[:rightimage][:kernel_id]}
       mv $target_mnt/initrd-#{node[:rightimage][:kernel_id]}  $target_mnt/boot/.
-    fi
+      ;;
+    "ubuntu" )
+      # Anything need to be done?
+      ;;
+  esac
+      
   EOH
 end
 

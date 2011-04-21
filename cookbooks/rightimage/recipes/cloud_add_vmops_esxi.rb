@@ -157,7 +157,7 @@ bash "create custom initrd" do
       ;;
 
      "kvm"|"esxi" )
-        # NOTE: Do we really need to build our own ramdisk since we are using vmbuilder
+        # NOTE: Do we really need to build our own ramdisk since we are using vmbuilder?
       ;;
   esac
 
@@ -267,7 +267,7 @@ bash "unmount target filesystem" do
   EOH
 end
 
-bash "convert image to VMDK flat file" do 
+bash "convert raw image to VMDK flat file" do 
   cwd File.dirname target_raw_path
   code <<-EOH
     set -e
@@ -316,7 +316,7 @@ bash "Create create vmdk and create ovf/ova files" do
   cwd "/tmp/ovftool"
 
   code <<-EOH
-  ovftool #{bundled_path}/temp.ovf #{bundled_path}/ova/#{bundled_image}.ovf # > /dev/null 2>&1
-  tar -cvf #{bundled_path}/ova/{bundled_image}.ova #{bundled_path}/ova/*
+  ./ovftool #{bundled_path}/temp.ovf #{bundled_path}/ova/#{bundled_image}.ovf  > /dev/null 2>&1
+  tar -cf #{bundled_path}/ova/{bundled_image}.ova #{bundled_path}/ova/*
  EOH
 end
