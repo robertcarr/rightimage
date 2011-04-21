@@ -97,6 +97,15 @@ bash "setup grub" do
     target_raw_path="#{target_raw_path}"
     target_mnt="#{target_mnt}"
 
+    case "#{node.rightimage.platform}" in
+      "ubuntu" )
+        grub_command="/usr/sbin/grub"
+        ;;
+       "ec2"|* )
+        grub_command="/sbin/grub"
+        ;;
+    esac
+
     chroot $target_mnt mkdir -p /boot/grub
     chroot $target_mnt cp -p /usr/share/grub/x86_64-redhat/* /boot/grub
     chroot $target_mnt ln -s /boot/grub/grub.conf /boot/grub/menu.lst
@@ -107,7 +116,7 @@ bash "setup grub" do
     cat > device.map <<EOF
 (hd0) #{target_raw_path}
 EOF
-    /sbin/grub --batch --device-map=device.map <<EOF
+    ${grub_command} --batch --device-map=device.map <<EOF
 root (hd0,0)
 setup (hd0)
 quit
@@ -233,6 +242,7 @@ directory "#{bundled_image_path}/ova" do
 end
 
 node[:rightimage][:ovf][:filename] = `ls -1 #{bundled_image_path}/*.vmdk`
+node[:rightimage][:ovf][:image_name] = bundled_image
 node[:rightimage][:ovf][:vmdk_size] = `ls -l1 #{bundled_image_path}/*.vmdk | awk '{ print $5; }'`
 node[:rightimage][:ovf][:capacity] = "10"
 node[:rightimage][:ovf][:ostype] = "linux26other"
