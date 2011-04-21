@@ -1,3 +1,8 @@
+# bootstrap_ubuntu.rb
+# 
+# Use vmbuilder to generate a base virtual image.  We will layer on additional features using other recipes
+#
+
 mount_dir = node[:rightimage][:mount_dir]
 
 #install prereq packages
@@ -52,6 +57,8 @@ end
 
 log "Configuring Image..."
 
+# vmbuilder is defaulting to ext4 and I couldn't find any options to force the filesystem type so I just hacked this.
+# we restore it back to normal later.  
 bash "Comment out ext4 in /etc/mke2fs.conf" do
   code <<-EOH
     set -e
@@ -106,12 +113,15 @@ EOS
 
 
 case "#{node.rightimage.virtual_environment}" in
+
   "kvm" )
       kvm_image=`basename $(ls -1 /mnt/vmbuilder/tmp*.qcow2)`
       ;;
+
   "esxi" )
       kvm_image=`basename $(ls -1 /mnt/vmbuilder/tmp*-flat.vmdk)`
       ;;
+
   "ec2"|* )
       if ( [ "#{node[:rightimage][:release]}" == "lucid" ] || [ "#{node[:rightimage][:release]}" == "maverick" ] ) ; then
         image_name=`cat /mnt/vmbuilder/xen.conf  | grep xvda1 | grep -v root  | cut -c 25- | cut -c -9`
@@ -191,6 +201,8 @@ dpkg -i /tmp/linux-headers*.deb
 dpkg -i /tmp/linux-image*.deb
 EOS
 chmod +x #{node[:rightimage][:mount_dir]}/tmp/install_custom_kernel.sh
+
+# Temp disable - it was causing my build to hang. 
 #chroot #{node[:rightimage][:mount_dir]} /tmp/install_custom_kernel.sh  
 EOH
   end
@@ -200,7 +212,6 @@ if node[:rightimage][:release] == "lucid" || node[:rightimage][:release] == "mav
 
   # Fix apt config so it does not install all recommended packages
   log "Fixing apt.conf APT::Install-Recommends setting prior to installing Java"
-   
   log "Installing Sun Java for Lucid..."
 
   guest_java_install = "/tmp/java_install"

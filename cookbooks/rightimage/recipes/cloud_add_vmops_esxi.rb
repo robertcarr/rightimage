@@ -1,3 +1,16 @@
+# cloud_add_vmops_esx.rb
+#
+# Converts a previously generated and mounted disk image and converts it to a stream optimized vmdk in an OVA package
+# 
+# 1. Create loopback filesystem for new disk image.
+# 2. rsync base OS from $source_image -> $target
+# 3. Update grub, fstab and modify kernels & modules if needed.
+# 4. Install vmware tools
+# 5. Add any special CloudStack tweeks
+# 6. Convert raw image to flat vmdk
+# 7. Covert to archived OVF format using ovftool
+#
+
 class Chef::Resource::Bash
   include RightScale::RightImage::Helper
 end
@@ -12,11 +25,14 @@ target_raw_path = "/mnt/#{target_raw}"
 target_mnt = "/mnt/target"
 
 bundled_image = "cloudstack_esxi_dev40.vmdk"
-bundled_image_path = "/mnt/#{bundled_image}"
+bundled_path = "/mnt"
+bundled_image_path = "#{bundled_path}/#{bundled_image}"
 
 loop_name="loop0"
 loop_dev="/dev/#{loop_name}"
 loop_map="/dev/mapper/#{loop_name}p1"
+
+image_size_gb=10
 
 package "qemu"
 
@@ -25,7 +41,7 @@ bash "create cloudstack-esxi loopback fs" do
     set -e 
     set -x
 
-    DISK_SIZE_GB=10  
+    DISK_SIZE_GB=#{image_size_gb}
     BYTES_PER_MB=1024
     DISK_SIZE_MB=$(($DISK_SIZE_GB * $BYTES_PER_MB))
 
@@ -40,26 +56,24 @@ bash "create cloudstack-esxi loopback fs" do
 
     dd if=/dev/zero of=$target_raw_path bs=1M count=$DISK_SIZE_MB    
 
-    loopdev=#{loop_dev}
-    loopmap=#{loop_map}
-    umount -lf $loopmap || true
-    kpartx -d $loopdev || true
-    losetup -d $loopdev || true
+    umount -lf #{loop_map} || true
+    kpartx -d  #{loop_dev} || true
+    losetup -d #{loop_dev} || true
 
-    losetup $loopdev $target_raw_path
+    losetup #{loop_dev} $target_raw_path
 
-    sfdisk $loopdev << EOF
+    sfdisk #{loop_dev} << EOF
 0,1304,L
 EOF
    
-    kpartx -a $loopdev
-    mke2fs -F -j $loopmap
+    kpartx -a #{loop_dev}
+    mke2fs -F -j #{loop_map}
     
     # setup uuid for our root partition
-    tune2fs -U #{node[:rightimage][:root_mount][:uuid]} $loopmap
+    tune2fs -U #{node[:rightimage][:root_mount][:uuid]} #{loop_map}
     
     mkdir $target_mnt
-    mount $loopmap $target_mnt
+    mount #{loop_map} $target_mnt
 
     rsync -a $source_image/ $target_mnt/
 
@@ -137,9 +151,11 @@ bash "create custom initrd" do
   case "#{node.rightimage.virtual_environment}" in
     "ec2" )
       rm -f $target_mnt/boot/initrd*
-      chroot $target_mnt mkinitrd --with=mptbase --with=mptscsih --with=mptspi --with=scsi_transport_spi --with=ata_piix --with=ext3 -v initrd-#{node[:rightimage][:kernel_id]} #{node[:rightimage][:kernel_id]}
+      chroot $target_mnt mkinitrd --with=mptbase --with=mptscsih --with=mptspi --with=scsi_transport_spi --with=ata_piix \
+         --with=ext3 -v initrd-#{node[:rightimage][:kernel_id]} #{node[:rightimage][:kernel_id]}
       mv $target_mnt/initrd-#{node[:rightimage][:kernel_id]}  $target_mnt/boot/.
       ;;
+
      "kvm"|"esxi" )
         # NOTE: Do we really need to build our own ramdisk since we are using vmbuilder
       ;;
@@ -176,6 +192,9 @@ EOF
     ;;
 
   "ubuntu" )
+    # https://help.ubuntu.com/community/VMware/Tools#Installing VMware tools on an Ubuntu guest
+    chroot $target_mnt apt-get install -y --no-install-recommends open-vm-dkms
+    chroot $target_mnt apt-get install -y --no-install-recommends open-vm-tools 
     ;;
 
  esac
@@ -183,6 +202,7 @@ EOF
 
   EOH
 end
+
 
 bash "configure for cloudstack" do 
   code <<-EOH
@@ -238,12 +258,10 @@ bash "unmount target filesystem" do
     set -e 
     set -x
     target_mnt=#{target_mnt}
-    loopdev=#{loop_dev}
-    loopmap=#{loop_map}
-    
-    umount -lf $loopmap
-    kpartx -d $loopdev
-    losetup -d $loopdev
+
+    umount -lf #{loop_map}
+    kpartx -d  #{loop_dev}
+    losetup -d #{loop_dev}
   EOH
 end
 
@@ -271,17 +289,17 @@ bash "Install ovftools" do
   EOH
 end
 
-directory "#{bundled_image_path}/ova" do
+directory "#{bundled_path}/ova" do
   action :create
 end
 
-ovf_filename = `ls -1 #{bundled_image_path}/*.vmdk`
+ovf_filename = `ls -1 #{bundled_path}/*.vmdk`
 ovf_image_name = bundled_image
-ovf_vmdk_size = `ls -l1 #{bundled_image_path}/*.vmdk | awk '{ print $5; }'`
+ovf_vmdk_size = `ls -l1 #{bundled_path}/*.vmdk | awk '{ print $5; }'`
 ovf_capacity = "10"
 ovf_ostype = "linux26other"
 
-template "#{bundled_image_path}/temp.ovf" do
+template "#{bundled_path}/temp.ovf" do
   source "ovf.erb"
   variables({
     :ovf_filename => ovf_filename,
@@ -294,7 +312,7 @@ end
 
 bash "Create create vmdk and create ovf/ova files" do
   code <<-EOH
-  ovftool #{bundled_image_path}/temp.ovf #{bundled_image_path}/ova/temp_name.ovf
-  tar -cvf #{bundled_image_path}/ova/temp_name.ova *
+  ovftool #{bundled_path}/temp.ovf #{bundled_path}/ova/#{bundled_image}.ovf
+  tar -cvf #{bundled_path}/ova/temp_name.ova *
  EOH
 end
