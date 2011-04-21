@@ -97,18 +97,20 @@ bash "setup grub" do
     target_raw_path="#{target_raw_path}"
     target_mnt="#{target_mnt}"
 
+    chroot $target_mnt mkdir -p /boot/grub
+
     case "#{node.rightimage.platform}" in
       "ubuntu" )
         grub_command="/usr/sbin/grub"
         ;;
-       "ec2"|* )
+
+      "ec2"|* )
+        chroot $target_mnt cp -p /usr/share/grub/x86_64-redhat/* /boot/grub
         grub_command="/sbin/grub"
         ;;
     esac
 
-    chroot $target_mnt mkdir -p /boot/grub
-    chroot $target_mnt cp -p /usr/share/grub/x86_64-redhat/* /boot/grub
-    chroot $target_mnt ln -s /boot/grub/grub.conf /boot/grub/menu.lst
+    chroot $target_mnt ln -sf /boot/grub/grub.conf /boot/grub/menu.lst
 
     echo "(hd0) #{node[:rightimage][:grub][:root_device]}" > $target_mnt/boot/grub/device.map
     echo "" >> $target_mnt/boot/grub/device.map
