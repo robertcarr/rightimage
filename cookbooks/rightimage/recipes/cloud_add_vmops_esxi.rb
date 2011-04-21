@@ -247,7 +247,7 @@ bash "unmount target filesystem" do
   EOH
 end
 
-bash "convert image" do 
+bash "convert image to VMDK flat file" do 
   cwd File.dirname target_raw_path
   code <<-EOH
     set -e
@@ -258,6 +258,7 @@ end
 
 remote_file "/tmp/ovftool.sh" do
   source "VMware-ovftool-2.0.1-260188-lin.x86_64.sh"
+  mode "0744"
 end
 
 bash "Install ovftools" do
@@ -266,7 +267,7 @@ bash "Install ovftools" do
     set -e
     set -x
     mkdir -p /tmp/ovftool
-    ovftool.sh --silent /tmp/ovftool AGREE_TO_EULA
+    ./ovftool.sh --silent /tmp/ovftool AGREE_TO_EULA
   EOH
 end
 
@@ -274,14 +275,21 @@ directory "#{bundled_image_path}/ova" do
   action :create
 end
 
-node[:rightimage][:ovf][:filename] = `ls -1 #{bundled_image_path}/*.vmdk`
-node[:rightimage][:ovf][:image_name] = bundled_image
-node[:rightimage][:ovf][:vmdk_size] = `ls -l1 #{bundled_image_path}/*.vmdk | awk '{ print $5; }'`
-node[:rightimage][:ovf][:capacity] = "10"
-node[:rightimage][:ovf][:ostype] = "linux26other"
+ovf_filename = `ls -1 #{bundled_image_path}/*.vmdk`
+ovf_image_name = bundled_image
+ovf_vmdk_size = `ls -l1 #{bundled_image_path}/*.vmdk | awk '{ print $5; }'`
+ovf_capacity = "10"
+ovf_ostype = "linux26other"
 
 template "#{bundled_image_path}/temp.ovf" do
   source "ovf.erb"
+  variables({
+    :ovf_filename => ovf_filename,
+    :ovf_image_name => ovf_image_name,
+    :ovf_vmkdk_size => ovf_vmdk_size,
+    :ovf_capacity => ovf_capacity,
+    :ovf_ostype => ovf_ostype
+  })
 end
 
 bash "Create create vmdk and create ovf/ova files" do
