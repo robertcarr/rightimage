@@ -203,7 +203,9 @@ EOF
   EOH
 end
 
-
+#
+# Add additional CloudStack specific configuration changes here
+#
 bash "configure for cloudstack" do 
   code <<-EOH
 #!/bin/bash -ex
@@ -285,7 +287,7 @@ bash "Install ovftools" do
     set -e
     set -x
     mkdir -p /tmp/ovftool
-    ./ovftool.sh --silent /tmp/ovftool AGREE_TO_EULA
+    ./ovftool.sh --silent /tmp/ovftool AGREE_TO_EULA 
   EOH
 end
 
@@ -304,15 +306,17 @@ template "#{bundled_path}/temp.ovf" do
   variables({
     :ovf_filename => ovf_filename,
     :ovf_image_name => ovf_image_name,
-    :ovf_vmkdk_size => ovf_vmdk_size,
+    :ovf_vmdk_size => ovf_vmdk_size,
     :ovf_capacity => ovf_capacity,
     :ovf_ostype => ovf_ostype
   })
 end
 
 bash "Create create vmdk and create ovf/ova files" do
+  cwd "/tmp/ovftool"
+
   code <<-EOH
-  ovftool #{bundled_path}/temp.ovf #{bundled_path}/ova/#{bundled_image}.ovf
-  tar -cvf #{bundled_path}/ova/temp_name.ova *
+  ovftool #{bundled_path}/temp.ovf #{bundled_path}/ova/#{bundled_image}.ovf # > /dev/null 2>&1
+  tar -cvf #{bundled_path}/ova/{bundled_image}.ova #{bundled_path}/ova/*
  EOH
 end

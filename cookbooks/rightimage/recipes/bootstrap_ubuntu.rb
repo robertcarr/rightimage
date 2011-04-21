@@ -1,6 +1,9 @@
 # bootstrap_ubuntu.rb
 # 
-# Use vmbuilder to generate a base virtual image.  We will layer on additional features using other recipes
+# Use vmbuilder to generate a base virtual image.  We will use the image generated here for other recipes to add
+# Cloud and Hypervisor specific details.
+#
+# When this is finished running, you should have a basic image ready in /mnt
 #
 
 mount_dir = node[:rightimage][:mount_dir]
@@ -109,7 +112,7 @@ fi
 
 EOS
     chmod +x /tmp/configure_script
-    #{bootstrap_cmd} --exec=/tmp/configure_script
+    #{bootstrap_cmd} --exec=/tmp/configure_script > /dev/null 2>&1
 
 
 case "#{node.rightimage.virtual_environment}" in
@@ -153,8 +156,6 @@ esac
     rm -rf  $random_dir
     mkdir -p #{node[:rightimage][:mount_dir]}/var/man
     chroot #{node[:rightimage][:mount_dir]}  chown -R man:root /var/man
-
-
 EOH
   not_if "test -e /mnt/vmbuilder/root.img"
 end
