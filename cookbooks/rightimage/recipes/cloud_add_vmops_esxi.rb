@@ -131,9 +131,18 @@ bash "create custom initrd" do
     set -e 
     set -x
     target_mnt=#{target_mnt}
-    rm -f $target_mnt/boot/initrd*
-    chroot $target_mnt mkinitrd --with=mptbase --with=mptscsih --with=mptspi --with=scsi_transport_spi --with=ata_piix --with=ext3 -v initrd-#{node[:rightimage][:kernel_id]} #{node[:rightimage][:kernel_id]}
-    mv $target_mnt/initrd-#{node[:rightimage][:kernel_id]}  $target_mnt/boot/.
+
+  case "#{node.rightimage.virtual_environment}" in
+    "ec2" )
+      rm -f $target_mnt/boot/initrd*
+      chroot $target_mnt mkinitrd --with=mptbase --with=mptscsih --with=mptspi --with=scsi_transport_spi --with=ata_piix --with=ext3 -v initrd-#{node[:rightimage][:kernel_id]} #{node[:rightimage][:kernel_id]}
+      mv $target_mnt/initrd-#{node[:rightimage][:kernel_id]}  $target_mnt/boot/.
+      ;;
+     "kvm"|"esxi" )
+        # NOTE: Do we really need to build our own ramdisk since we are using vmbuilder
+      ;;
+  esac
+
   EOH
 end
 
@@ -144,12 +153,16 @@ bash "install vmware tools" do
     set -x
     target_mnt=#{target_mnt}
     TMP_DIR=/tmp/vmware_tools
-    chroot $target_mnt mkdir -p $TMP_DIR
-    chroot $target_mnt curl http://packages.vmware.com/tools/keys/VMWARE-PACKAGING-GPG-DSA-KEY.pub -o $TMP_DIR/dsa.pub
-    chroot $target_mnt curl http://packages.vmware.com/tools/keys/VMWARE-PACKAGING-GPG-RSA-KEY.pub -o $TMP_DIR/rsa.pub
-    chroot $target_mnt rpm --import $TMP_DIR/dsa.pub
-    chroot $target_mnt rpm --import $TMP_DIR/rsa.pub
-    cat > $target_mnt/etc/yum.repos.d/vmware-tools.repo <<EOF
+
+# TODO: THIS NEEDS TO BE CLEANED UP
+  case "#{node.rightimage.platform}" in 
+    "centos" )
+      chroot $target_mnt mkdir -p $TMP_DIR
+      chroot $target_mnt curl http://packages.vmware.com/tools/keys/VMWARE-PACKAGING-GPG-DSA-KEY.pub -o $TMP_DIR/dsa.pub
+      chroot $target_mnt curl http://packages.vmware.com/tools/keys/VMWARE-PACKAGING-GPG-RSA-KEY.pub -o $TMP_DIR/rsa.pub
+      chroot $target_mnt rpm --import $TMP_DIR/dsa.pub
+      chroot $target_mnt rpm --import $TMP_DIR/rsa.pub
+      cat > $target_mnt/etc/yum.repos.d/vmware-tools.repo <<EOF
 [vmware-tools] 
 name=VMware Tools 
 baseurl=http://packages.vmware.com/tools/esx/latest/rhel5/x86_64
@@ -158,6 +171,14 @@ gpgcheck=1
 EOF
    yum -c /tmp/yum.conf --installroot=$target_mnt -y clean all
    yum -c $target_mnt/etc/yum.conf --installroot=$target_mnt -y install vmware-tools-nox
+    ;;
+
+  "ubuntu" )
+    ;;
+
+ esac
+
+
   EOH
 end
 
@@ -168,17 +189,27 @@ bash "configure for cloudstack" do
     set -x
     target_mnt=#{target_mnt}
 
-    # clean out packages
-    yum -c /tmp/yum.conf --installroot=$target_mnt -y clean all
+  case "#{node.rightimage.platform}" in
+    "ec2" )
+      # clean out packages
+      yum -c /tmp/yum.conf --installroot=$target_mnt -y clean all
 
-    # configure dns timeout 
-    echo 'timeout 300;' > $target_mnt/etc/dhclient.conf
+      # configure dns timeout 
+      echo 'timeout 300;' > $target_mnt/etc/dhclient.conf
+
+      rm ${target_mnt}/var/lib/rpm/__*
+      chroot $target_mnt rpm --rebuilddb
+      ;;
+
+    "ubuntu" )
+      echo 'timeout 300;' > $target_mnt/etc/dhcp3/dhclient.conf
+      ;;
+     
+  esac 
 
     mkdir -p $target_mnt/etc/rightscale.d
     echo "vmops" > $target_mnt/etc/rightscale.d/cloud
 
-    rm ${target_mnt}/var/lib/rpm/__*
-    chroot $target_mnt rpm --rebuilddb
 
   EOH
 end
