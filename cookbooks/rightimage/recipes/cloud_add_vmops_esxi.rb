@@ -223,7 +223,7 @@ bash "convert image" do
   EOH
 end
 
-cookbook_file "/tmp/ovftool.sh" do
+remote_file "/tmp/ovftool.sh" do
   source "VMware-ovftool-2.0.1-260188-lin.x86_64.sh"
 end
 
