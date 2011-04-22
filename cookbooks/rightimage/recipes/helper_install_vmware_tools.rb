@@ -3,7 +3,7 @@ bash "install vmware tools" do
 #!/bin/bash -ex
     set -e 
     set -x
-    target_mnt=#{target_mnt}
+    target_mnt=#{node.rightimage.target_mnt}
     TMP_DIR=/tmp/vmware_tools
 
 # TODO: THIS NEEDS TO BE CLEANED UP

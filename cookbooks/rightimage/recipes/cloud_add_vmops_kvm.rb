@@ -31,7 +31,6 @@ node[:rightimage][:source_image] = node.rightimage.mount_dir
 
 
 package "qemu"
-
 include_recipe "rightimage::helper_create_image_and_rsync"
 include_recipe "rightimage::helper_proc_grub_fstab"
 

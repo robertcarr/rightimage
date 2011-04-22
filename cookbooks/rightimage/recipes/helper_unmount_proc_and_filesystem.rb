@@ -3,7 +3,7 @@ bash "unmount proc & dev" do
 #!/bin/bash -ex
     set -e 
     set -x
-    target_mnt=#{target_mnt}
+    target_mnt=#{node.rightimage.target_mnt}
     umount -lf $target_mnt/proc
     umount -lf $target_mnt/dev
   EOH
@@ -19,10 +19,10 @@ bash "unmount target filesystem" do
 #!/bin/bash -ex
     set -e 
     set -x
-    target_mnt=#{target_mnt}
+    target_mnt=#{node.rightimage.target_mnt}
 
-    umount -lf #{loop_map}
-    kpartx -d  #{loop_dev}
-    losetup -d #{loop_dev}
+    umount -lf #{node.rightimage.loop_map}
+    kpartx -d  #{node.rightimage.loop_dev}
+    losetup -d #{node.rightimage.loop_dev}
   EOH
 end

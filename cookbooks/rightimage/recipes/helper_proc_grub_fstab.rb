@@ -8,20 +8,20 @@ bash "mount proc & dev" do
 #!/bin/bash -ex
     set -e 
     set -x
-    target_mnt=#{target_mnt}
+    target_mnt=#{node.rightimage.target_mnt}
     mount -t proc none $target_mnt/proc
     mount --bind /dev $target_mnt/dev
   EOH
 end
 
 # add fstab
-template "#{target_mnt}/etc/fstab" do
+template "#{node.rightimage.target_mnt}/etc/fstab" do
   source "fstab.erb"
   backup false
 end
 
 # insert grub conf
-template "#{target_mnt}/boot/grub/grub.conf" do
+template "#{node.rightimage.target_mnt}/boot/grub/grub.conf" do
   source "grub.conf"
   backup false
 end
@@ -31,8 +31,8 @@ bash "setup grub" do
     set -e 
     set -x
 
-    target_raw_path="#{target_raw_path}"
-    target_mnt="#{target_mnt}"
+    target_raw_path="#{node.rightimage.target_raw_path}"
+    target_mnt="#{node.rightimage.target_mnt}"
 
     chroot $target_mnt mkdir -p /boot/grub
 
@@ -49,11 +49,11 @@ bash "setup grub" do
 
     chroot $target_mnt ln -sf /boot/grub/grub.conf /boot/grub/menu.lst
 
-    echo "(hd0) #{node[:rightimage][:grub][:root_device]}" > $target_mnt/boot/grub/device.map
+    echo "(hd0) #{node.rightimage.node[:rightimage][:grub][:root_device]}" > $target_mnt/boot/grub/device.map
     echo "" >> $target_mnt/boot/grub/device.map
 
     cat > device.map <<EOF
-(hd0) #{target_raw_path}
+(hd0) #{node.rightimage.target_raw_path}
 EOF
     ${grub_command} --batch --device-map=device.map <<EOF
 root (hd0,0)

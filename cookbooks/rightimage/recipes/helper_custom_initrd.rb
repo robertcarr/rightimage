@@ -3,7 +3,7 @@ bash "create custom initrd" do
 #!/bin/bash -ex
     set -e 
     set -x
-    target_mnt=#{target_mnt}
+    target_mnt=#{node.rightimage.target_mnt}
 
   case "#{node.rightimage.virtual_environment}" in
     "ec2" )

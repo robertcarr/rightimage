@@ -6,7 +6,7 @@ bash "configure for cloudstack" do
 #!/bin/bash -ex
     set -e 
     set -x
-    target_mnt=#{target_mnt}
+    target_mnt=#{node.rightimage.target_mnt}
 
   case "#{node.rightimage.platform}" in
     "ec2" )
@@ -28,7 +28,6 @@ bash "configure for cloudstack" do
 
     mkdir -p $target_mnt/etc/rightscale.d
     echo "vmops" > $target_mnt/etc/rightscale.d/cloud
-
 
   EOH
 end
