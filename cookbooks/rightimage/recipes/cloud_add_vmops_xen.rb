@@ -4,6 +4,7 @@ end
 
 raise "ERROR: you must set your virtual_environment to xen!"  if node[:rightimage][:virtual_environment] != "xen"
 
+
 source_image = "#{node.rightimage.mount_dir}" 
 destination_image = "/mnt/vmops_image"
 destination_image_mount = "/mnt/vmops_image_mount"
@@ -33,7 +34,7 @@ bash "create_vmops_image" do
   EOH
 end
 
-include_recipe rightimage::proc_grub_fstab
+include_recipe "rightimage::proc_grub_fstab"
 
 bash "install xen kernel" do 
   code <<-EOH

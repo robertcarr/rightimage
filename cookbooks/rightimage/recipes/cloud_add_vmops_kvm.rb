@@ -4,23 +4,36 @@ end
 
 raise "ERROR: you must set your virtual_environment to kvm!"  if node[:rightimage][:virtual_environment] != "kvm"
 
-source_image = "#{node.rightimage.mount_dir}" 
 
-target_raw = "target.raw"
-target_raw_path = "/mnt/#{target_raw}"
-target_mnt = "/mnt/target"
+# Deprecating in favor of attributes
+# Eventually moving them to an attribute file
+#
 
-bundled_image = "#{image_name}.qcow2"
-bundled_image_path = "/mnt/#{bundled_image}"
+#loop_name="loop0"
+#loop_dev="/dev/#{loop_name}"
+#loop_map="/dev/mapper/#{loop_name}p1"
+#bundled_image = "#{image_name}.qcow2"
+#bundled_image_path = "/mnt/#{bundled_image}"
+#target_raw = "target.raw"
+#target_raw_path = "/mnt/#{target_raw}"
+#target_mnt = "/mnt/target"
+#source_image = "#{node.rightimage.mount_dir}" 
 
-loop_name="loop0"
-loop_dev="/dev/#{loop_name}"
-loop_map="/dev/mapper/#{loop_name}p1"
+node[:rightimage][:loop_name] = "loop0"
+node[:rightimage][:loop_dev] = "/dev/#{node.rightimage.loop_name}"
+node[:rightimage][:loop_map] = "/dev/mapper/#{loop_name}p1"
+node[:rightimage][:bundled_image] = "#{image_name}.qcow2"
+node[:rightimage][:bundled_image_path] = "/mnt/#{node.rightimage.bundled_image}"
+node[:rightimage][:target_raw] = "target.raw"
+node[:rightimage][:target_raw_path] = "/mnt/#{node.rightimage.target_raw}"
+node[:rightimage][:target_mnt] = "/mnt/target"
+node[:rightimage][:source_image] = node.rightimage.mount_dir
+
 
 package "qemu"
 
-include_recipe rightimage::helper_create_image_and_rsync
-include_recipe rightimage::helper_proc_grub_fstab
+include_recipe "rightimage::helper_create_image_and_rsync"
+include_recipe "rightimage::helper_proc_grub_fstab"
 
 
 bash "install kvm kernel" do 
@@ -28,7 +41,7 @@ bash "install kvm kernel" do
 #!/bin/bash -ex
     set -e 
     set -x
-    target_mnt=#{target_mnt}
+    target_mnt=#{node.rightimage.target_mnt}
 
 
   case "#{node.rightimage.platform}" in 
@@ -47,31 +60,31 @@ bash "install kvm kernel" do
   EOH
 end
 
-include_recipe rightimage::helper_helper_cloudstack_standard
-include_recipe rightimage::helper_unmount_proc_and_filesystem
+include_recipe "rightimage::helper_helper_cloudstack_standard"
+include_recipe "rightimage::helper_unmount_proc_and_filesystem"
 
 
 bash "backup raw image" do 
-  cwd File.dirname target_raw_path
+  cwd File.dirname node.rightimage.target_raw_path
   code <<-EOH
-    raw_image=$(basename #{target_raw_path})
+    raw_image=$(basename #{node.rightimage.target_raw_path})
     cp -v $raw_image $raw_image.bak 
   EOH
 end
 
 bash "upload image" do 
-  cwd File.dirname target_raw_path
+  cwd File.dirname node.rightimage.target_raw_path
   code <<-EOH
     set -e
     set -x
-    qemu-img convert -O qcow2 #{target_raw_path} #{bundled_image_path}
+    qemu-img convert -O qcow2 #{node.rightimage.target_raw_path} #{node.rightimage.bundled_image_path}
 
     # upload image
     # export AWS_ACCESS_KEY_ID=#{node.rightimage.aws_access_key_id_for_upload}
     # export AWS_SECRET_ACCESS_KEY=#{node.rightimage.aws_secret_access_key_for_upload}
     # export AWS_CALLING_FORMAT=SUBDOMAIN 
-    # /usr/local/bin/s3cmd -v put #{node.rightimage.image_upload_bucket}:#{image_name}.vhd.bz2 /mnt/#{image_name}.vhd.bz2 x-amz-acl:public-read --progress
-    # /usr/bin/s3cmd -P put #{bundled_image_path} s3://rightscale-cloudstack-dev/#{bundled_image}
+    # /usr/local/bin/s3cmd -v put #{node.rightimage.image_upload_bucket}:#{node.rightimage.image_name}.vhd.bz2 /mnt/#{node.rightimage.image_name}.vhd.bz2 x-amz-acl:public-read --progress
+    # /usr/bin/s3cmd -P put #{node.rightimage.bundled_image_path} s3://rightscale-cloudstack-dev/#{node.rightimage.bundled_image}
   EOH
 end
 
