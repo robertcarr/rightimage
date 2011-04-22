@@ -17,10 +17,9 @@ end
 
 raise "ERROR: you must set your virtual_environment to esxi!"  if node[:rightimage][:virtual_environment] != "esxi"
 
+package "qemu"
 
 include_recipe "rightimage::image_builder_config.rb"
-
-package "qemu"
 include_recipe "rightimage::helper_create_image_and_rsync"
 include_recipe "rightimage::helper_proc_grub_fstab"
 include_recipe "rightimage::helper_customer_initrd"
