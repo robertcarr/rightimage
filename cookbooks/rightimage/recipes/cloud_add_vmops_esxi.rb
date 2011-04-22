@@ -18,37 +18,22 @@ end
 raise "ERROR: you must set your virtual_environment to esxi!"  if node[:rightimage][:virtual_environment] != "esxi"
 
 
-source_image = "#{node.rightimage.mount_dir}" 
-
-target_raw = "target.raw"
-target_raw_path = "/mnt/#{target_raw}"
-target_mnt = "/mnt/target"
-
-bundled_image = "cloudstack_esxi_dev40.vmdk"
-bundled_path = "/mnt"
-bundled_image_path = "#{bundled_path}/#{bundled_image}"
-
-loop_name="loop0"
-loop_dev="/dev/#{loop_name}"
-loop_map="/dev/mapper/#{loop_name}p1"
-
-image_size_gb=10
+include_recipe "rightimage::image_builder_config.rb"
 
 package "qemu"
-
-include_recipe rightimage::helper_create_image_and_rsync
-include_recipe rightimage::helper_proc_grub_fstab
-include_recipe rightimage::helper_customer_initrd
-include_recipe rightimage::helper_install_vmware_tools
-include_recipe rightimage::helper_helper_cloudstack_standard
-include_recipe rightimage::helper_unmount_proc_and_filesystem
+include_recipe "rightimage::helper_create_image_and_rsync"
+include_recipe "rightimage::helper_proc_grub_fstab"
+include_recipe "rightimage::helper_customer_initrd"
+include_recipe "rightimage::helper_install_vmware_tools"
+include_recipe "rightimage::helper_helper_cloudstack_standard"
+include_recipe "rightimage::helper_unmount_proc_and_filesystem"
 
 bash "convert raw image to VMDK flat file" do 
-  cwd File.dirname target_raw_path
+  cwd File.dirname node.rightimage.target_raw_path
   code <<-EOH
     set -e
     set -x
-    qemu-img convert -O vmdk #{target_raw_path} #{bundled_image_path}
+    qemu-img convert -O vmdk #{node.rightimage.target_raw_path} #{node.rightimage.bundled_image_path}
   EOH
 end
 
@@ -67,17 +52,17 @@ bash "Install ovftools" do
   EOH
 end
 
-directory "#{bundled_path}/ova" do
+directory "#{node.rightimage.bundled_path}/ova" do
   action :create
 end
 
-ovf_filename = `ls -1 #{bundled_path}/*.vmdk`
+ovf_filename = `ls -1 #{node.rightimage.bundled_path}/*.vmdk`
 ovf_image_name = bundled_image
-ovf_vmdk_size = `ls -l1 #{bundled_path}/*.vmdk | awk '{ print $5; }'`
+ovf_vmdk_size = `ls -l1 #{node.rightimage.bundled_path}/*.vmdk | awk '{ print $5; }'`
 ovf_capacity = "10"
 ovf_ostype = "linux26other"
 
-template "#{bundled_path}/temp.ovf" do
+template "#{node.rightimage.bundled_path}/temp.ovf" do
   source "ovf.erb"
   variables({
     :ovf_filename => ovf_filename,
@@ -92,7 +77,7 @@ bash "Create create vmdk and create ovf/ova files" do
   cwd "/tmp/ovftool"
 
   code <<-EOH
-  ./ovftool #{bundled_path}/temp.ovf #{bundled_path}/ova/#{bundled_image}.ovf  > /dev/null 2>&1
-  tar -cf #{bundled_path}/ova/{bundled_image}.ova #{bundled_path}/ova/*
+  ./ovftool #{node.rightimage.bundled_path}/temp.ovf #{bundled_path}/ova/#{bundled_image}.ovf  > /dev/null 2>&1
+  tar -cf #{node.rightimage.bundled_path}/ova/{bundled_image}.ova #{bundled_path}/ova/*
  EOH
 end

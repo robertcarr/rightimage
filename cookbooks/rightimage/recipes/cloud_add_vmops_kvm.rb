@@ -19,18 +19,8 @@ raise "ERROR: you must set your virtual_environment to kvm!"  if node[:rightimag
 #target_mnt = "/mnt/target"
 #source_image = "#{node.rightimage.mount_dir}" 
 
-node[:rightimage][:loop_name] = "loop0"
-node[:rightimage][:loop_dev] = "/dev/#{node.rightimage.loop_name}"
-node[:rightimage][:loop_map] = "/dev/mapper/#{loop_name}p1"
-node[:rightimage][:bundled_image] = "#{image_name}.qcow2"
-node[:rightimage][:bundled_image_path] = "/mnt/#{node.rightimage.bundled_image}"
-node[:rightimage][:target_raw] = "target.raw"
-node[:rightimage][:target_raw_path] = "/mnt/#{node.rightimage.target_raw}"
-node[:rightimage][:target_mnt] = "/mnt/target"
-node[:rightimage][:source_image] = node.rightimage.mount_dir
-
-
 package "qemu"
+include_recipe "rightimage::image_builder_config.rb"
 include_recipe "rightimage::helper_create_image_and_rsync"
 include_recipe "rightimage::helper_proc_grub_fstab"
 
