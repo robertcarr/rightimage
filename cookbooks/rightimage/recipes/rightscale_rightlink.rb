@@ -10,7 +10,7 @@ bash "checkout_repo" do
     if [ -d sandbox_builds ]; then mv sandbox_builds sandbox_builds.$RANDOM; fi
     git clone git@github.com:rightscale/sandbox_builds.git 
     cd sandbox_builds 
-    git reset #{node[:rightimage][:sandbox_repo_tag]} --hard
+    git checkout #{node[:rightimage][:sandbox_repo_tag]} --force
     git submodule init 
     git submodule update
     cd repos/right_net
@@ -44,14 +44,14 @@ export AWS_CALLING_FORMAT=SUBDOMAIN
 
 CHROOT_SCRIPT
     chmod +x #{node[:rightimage][:mount_dir]}/tmp/build_rightlink.sh
-    chroot #{node[:rightimage][:mount_dir]} /tmp/build_rightlink.sh
+    chroot #{node[:rightimage][:mount_dir]} /tmp/build_rightlink.sh > /dev/null
     rm -rf #{node[:rightimage][:mount_dir]}/tmp/build_rightlink.sh
   EOC
 
 end
 
 bash "install_rightlink" do 
-  not_if "test -e #{node[:rightimage][:mount_dir]}/etc/init.d/rightimage"
+#  not_if "test -e #{node[:rightimage][:mount_dir]}/etc/init.d/rightimage"
   code <<-EOC
     set -e
     rm -rf #{node[:rightimage][:mount_dir]}/opt/rightscale/
@@ -62,11 +62,14 @@ bash "install_rightlink" do
     chmod 0770 #{node[:rightimage][:mount_dir]}/root/.rightscale
     chmod 0440 #{node[:rightimage][:mount_dir]}/root/.rightscale/*
 
-    if [ "#{node[:rightimage][:platform]}" == "ubuntu" ]; then
-      chroot #{node[:rightimage][:mount_dir]} update-rc.d rightimage start 96 2 3 4 5 . stop 1 0 1 6 .
-    else
-      chroot #{node[:rightimage][:mount_dir]} chkconfig --add rightimage
-    fi
+    case "#{node.rightimage.platform}" in 
+      "ubuntu" )
+        chroot #{node[:rightimage][:mount_dir]} update-rc.d rightimage start 96 2 3 4 5 . stop 1 0 1 6 .
+        ;; 
+      "ec2"|* )
+        chroot #{node[:rightimage][:mount_dir]} chkconfig --add rightimage
+        ;;
+    esac
 
     # remove sandbox repo
     rm -rf #{node[:rightimage][:mount_dir]}/tmp/sandbox_builds

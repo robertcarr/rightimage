@@ -4,6 +4,8 @@ end
 
 raise "ERROR: you must set your virtual_environment to xen!"  if node[:rightimage][:virtual_environment] != "xen"
 
+include_recipe "rightimage::install_vhd-util" if node[:rightimage][:virtual_environment] == "xen"  
+
 source_image = "#{node.rightimage.mount_dir}" 
 destination_image = "/mnt/vmops_image"
 destination_image_mount = "/mnt/vmops_image_mount"
@@ -20,10 +22,12 @@ bash "create_vmops_image" do
 
     umount -lf #{source_image}/proc || true 
     umount -lf #{destination_image_mount}/proc || true 
+    umount -lf #{destination_image_mount}/sys || true 
     umount -lf #{destination_image_mount} || true
 
     rm -rf $destination_image $destination_image_mount
-    dd if=/dev/zero of=$destination_image bs=1M count=10240    
+#    dd if=/dev/zero of=$destination_image bs=1M count=10240    
+    dd if=/dev/zero of=$destination_image bs=1M count=4096    
     mke2fs -F -j $destination_image
     mkdir $destination_image_mount
     mount -o loop $destination_image $destination_image_mount
@@ -56,19 +60,10 @@ bash "mount proc" do
   EOH
 end
 
-bash "install xen kernel" do 
-  code <<-EOH
-#!/bin/bash -ex
-    set -e 
-    set -x
-    mount_dir=#{destination_image_mount}
-    rm -f $mount_dir/boot/vmlinu* 
-    rm -rf $mount_dir/lib/modules/*
-    yum -c /tmp/yum.conf --installroot=$mount_dir -y install kernel-xen
-    rm -f $mount_dir/boot/initrd*
-    chroot $mount_dir mkinitrd --omit-scsi-modules --with=xennet   --with=xenblk  --preload=xenblk  initrd-#{node[:rightimage][:kernel_id]}  #{node[:rightimage][:kernel_id]}
-    mv $mount_dir/initrd-#{node[:rightimage][:kernel_id]}  $mount_dir/boot/.
-  EOH
+rightimage_kernel "xen" do
+  guest_root destination_image_mount
+  version node[:rightimage][:kernel_id]
+  action :install
 end
 
 bash "configure for cloudstack" do 
@@ -102,7 +97,7 @@ bash "unmount proc" do
     set -e 
     set -x
     target_mnt=#{destination_image_mount}
-    umount -lf $target_mnt/proc
+    umount -lf $target_mnt/proc || true
   EOH
 end
 
@@ -129,9 +124,7 @@ bash "backup raw image" do
   EOH
 end
 
-include_recipe "rightimage::install_vhd-util" if node[:rightimage][:virtual_environment] == "xen"  
-
-bash "xen convert and upload" do 
+bash "xen convert" do 
   cwd File.dirname destination_image
   code <<-EOH
     set -e
@@ -141,13 +134,6 @@ bash "xen convert and upload" do
     vhd-util convert -s 0 -t 1 -i $raw_image -o $vhd_image
     vhd-util convert -s 1 -t 2 -i $vhd_image -o #{image_name}.vhd
     bzip2 #{image_name}.vhd
-
-    # upload image
-    # export AWS_ACCESS_KEY_ID=#{node.rightimage.aws_access_key_id_for_upload}
-    # export AWS_SECRET_ACCESS_KEY=#{node.rightimage.aws_secret_access_key_for_upload}
-    # export AWS_CALLING_FORMAT=SUBDOMAIN 
-    # /usr/local/bin/s3cmd -v put #{node.rightimage.image_upload_bucket}:#{image_name}.vhd.bz2 /mnt/#{image_name}.vhd.bz2 x-amz-acl:public-read --progress
-
   EOH
 end
 

@@ -49,9 +49,14 @@ set -e
 ## yum is getting mad that /etc/fstab does not exist and that /proc is not mounted
 mkdir -p #{node[:rightimage][:mount_dir]}/etc
 touch #{node[:rightimage][:mount_dir]}/etc/fstab
+
 mkdir -p #{node[:rightimage][:mount_dir]}/proc
 umount #{node[:rightimage][:mount_dir]}/proc || true
 mount --bind /proc #{node[:rightimage][:mount_dir]}/proc
+
+mkdir -p #{node[:rightimage][:mount_dir]}/sys
+umount #{node[:rightimage][:mount_dir]}/sys || true
+mount --bind /sys #{node[:rightimage][:mount_dir]}/sys
 
 ## bootstrap base OS
 yum -c /tmp/yum.conf --installroot=#{node[:rightimage][:mount_dir]} -y groupinstall Base 
@@ -180,10 +185,13 @@ touch #{node[:rightimage][:mount_dir]}/fastboot
 
 # disable IPV6
 echo "NETWORKING_IPV6=no" >> #{node[:rightimage][:mount_dir]}/etc/sysconfig/network
-echo "alias ipv6 off" >> #{node[:rightimage][:mount_dir]}/etc/modprobe.conf 
-echo "alias net-pf-10 off" >> #{node[:rightimage][:mount_dir]}/etc/modprobe.conf 
+echo "install ipv6 /bin/true" > #{node[:rightimage][:mount_dir]}/etc/modprobe.d/disable-ipv6.conf
+echo "options ipv6 disable=1" >> #{node[:rightimage][:mount_dir]}/etc/modprobe.d/disable-ipv6.conf
 chroot #{node[:rightimage][:mount_dir]} /sbin/chkconfig ip6tables off
 
+# Depricated CentOS 5.3 and older uses this to disable ipv6
+#echo "alias ipv6 off" >> #{node[:rightimage][:mount_dir]}/etc/modprobe.conf 
+#echo "alias net-pf-10 off" >> #{node[:rightimage][:mount_dir]}/etc/modprobe.conf 
 EOF
 
 end
@@ -230,6 +238,12 @@ bash "clean_db" do
   EOH
 end
 
+bash "cleanup" do
+  code <<-EOH
+    umount -lf #{node[:rightimage][:mount_dir]}/proc || true
+    umount -lf #{node[:rightimage][:mount_dir]}/sys || true
+  EOH
+end    
 
 
 

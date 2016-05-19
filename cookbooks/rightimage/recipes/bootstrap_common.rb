@@ -40,8 +40,8 @@ if node[:rightimage][:debug] == "true"
     code <<-EOH
       set -e
       set -x
-      ## set root passwd to 'rightscale'
-      echo 'echo root:rightscale | chpasswd' > #{node[:rightimage][:mount_dir]}/tmp/chpasswd
+      ## set random root passwd 
+      echo 'echo root:#{generate_persisted_passwd} | chpasswd' > #{node[:rightimage][:mount_dir]}/tmp/chpasswd
       chmod +x #{node[:rightimage][:mount_dir]}/tmp/chpasswd
       chroot #{node[:rightimage][:mount_dir]} /tmp/chpasswd
   EOH

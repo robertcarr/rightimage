@@ -2,190 +2,212 @@ class Chef::Resource::Bash
   include RightScale::RightImage::Helper
 end
 
-package "euca2ools" if node[:rightimage][:platform] == "ubuntu" 
+raise "ERROR: you must set your virtual_environment to xen!"  if node[:rightimage][:virtual_environment] != "xen"
+
+euca_tools_version = "1.3.1"
+
+source_image = node[:rightimage][:mount_dir]
+
+build_root = "/mnt"
+
+target_raw = "eucalyptus.img"
+target_raw_path = "#{build_root}/#{target_raw}"
+guest_root = "#{build_root}/euca"
+
+package_root = "#{build_root}/pkg"
+cloud_package_root = "#{package_root}/euca"
+
+loop_name="loop0"
+loop_dev="/dev/#{loop_name}"
+
+
+bash "clean yum" do
+  only_if { node[:platform] == "centos" }
+  code <<-EOH
+    set -x
+    yum clean all
+  EOH
+end
+
+package "grub"
+
+bash "cleanup" do 
+  code <<-EOH
+    set -x
+    GUEST_ROOT=#{guest_root}
+    source_image="#{source_image}" 
+    loopdev=#{loop_dev}  
+    umount -lf $source_image/proc || true 
+    umount -lf $GUEST_ROOT/proc || true 
+    umount -lf $GUEST_ROOT/dev || true
+    umount -lf $GUEST_ROOT/sys || true
+    umount -lf $GUEST_ROOT || true
+    losetup -d $loopdev
+    rm -rf $target_raw_path $GUEST_ROOT
+  EOH
+end
+
+bash "create eucalyptus loopback fs" do 
+  code <<-EOH
+    set -e 
+    set -x
+  
+    DISK_SIZE_GB=#{node[:rightimage][:root_size_gb]}  
+    BYTES_PER_MB=1024
+    DISK_SIZE_MB=$(($DISK_SIZE_GB * $BYTES_PER_MB))
+
+    source_image="#{source_image}" 
+    target_raw_path="#{target_raw_path}"
+    GUEST_ROOT="#{guest_root}"
+    
+    dd if=/dev/zero of=$target_raw_path bs=1M count=$DISK_SIZE_MB    
+    
+    loopdev=#{loop_dev}
+    losetup $loopdev $target_raw_path
+    
+    mke2fs -F -j $loopdev
+    mkdir $GUEST_ROOT
+    mount $loopdev $GUEST_ROOT
+    
+    rsync -a $source_image/ $GUEST_ROOT/
+  EOH
+end
 
 #  - add fstab
-template "#{node[:rightimage][:mount_dir]}/etc/fstab" do
+template "#{guest_root}/etc/fstab" do
   source "fstab.erb"
   backup false
 end
 
-remote_file "/tmp/euca2ools-1.2-centos-i386.tar.gz" do 
-  source "euca2ools-1.2-centos-i386.tar.gz"
+remote_file "/tmp/euca2ools-#{euca_tools_version}-centos-i386.tar.gz" do 
+  source "euca2ools-#{euca_tools_version}-centos-i386.tar.gz"
   backup false
 end
 
-remote_file "/tmp/euca2ools-1.2-centos-x86_64.tar.gz" do 
-  source "euca2ools-1.2-centos-x86_64.tar.gz"
+remote_file "/tmp/euca2ools-#{euca_tools_version}-centos-x86_64.tar.gz" do 
+  source "euca2ools-#{euca_tools_version}-centos-x86_64.tar.gz"
   backup false
 end
 
-## copy the generic image 
-bash "copy_image" do 
-  code <<-EOC
-#!/bin/bash  -ex
-  set -x
-  set -e
-  unmount /mnt/euca/proc || true
-  ## copy the gneric image
-  rm -rf /mnt/euca
-  mkdir -p /mnt/euca
-  rsync -a --exclude=tmp --exclude=proc #{node[:rightimage][:mount_dir]}/ /mnt/euca/
-  mkdir -p /mnt/euca/proc
-  rm -rf /mnt/euca_tmp
-  mkdir /mnt/euca_tmp
-  cd /mnt/euca_tmp
+bash "mount proc & dev" do 
+  code <<-EOH
+    set -e 
+    set -x
+    GUEST_ROOT=#{guest_root}
+    mount -t proc none $GUEST_ROOT/proc
+    mount --bind /dev $GUEST_ROOT/dev
+    mount --bind /sys $GUEST_ROOT/sys
+  EOH
+end
 
-  ## insert keys
-  echo -n "#{node[:rightimage][:euca][:x509_key]}" > /mnt/euca_tmp/euca_x509_key
-  echo -n "#{node[:rightimage][:euca][:x509_cert]}" > /mnt/euca_tmp/euca_x509_cert
-  echo -n "#{node[:rightimage][:euca][:x509_key_admin]}" > /mnt/euca_tmp/euca_x509_key_admin
-  echo -n "#{node[:rightimage][:euca][:x509_cert_admin]}" > /mnt/euca_tmp/euca_x509_cert_admin
-  echo -n "#{node[:rightimage][:euca][:euca_cert]}" > /mnt/euca_tmp/euca_cert
+rightimage_kernel "xen" do
+  guest_root guest_root
+  version node[:rightimage][:kernel_id]
+  action :install
+end
 
-  ## insert cloud file
-  mkdir -p /mnt/euca/etc/rightscale.d
-  echo -n "eucalyptus" > /mnt/euca/etc/rightscale.d/cloud
+package "euca2ools" do
+  only_if { node[:rightimage][:platform] == "ubuntu" }
+end
 
-  # install euca tools
-
- 
-  if [ "#{node[:rightimage][:platform]}" == "centos" ]; then 
+bash "install euca tools for centos" do 
+  only_if { node[:rightimage][:platform] == "centos" }
+  code <<-EOH
+#!/bin/bash -ex
+    set -e 
+    set -x
+    
+    VERSION=#{euca_tools_version}  
+    GUEST_ROOT=#{guest_root}
+      
+    # install on host
     cd /tmp
-    tar -xzvf  euca2ools-1.2-centos-#{node[:kernel][:machine]}.tar.gz 
-    cd  euca2ools-1.2-centos-#{node[:kernel][:machine]}
+    export ARCH=#{node[:kernel][:machine]}
+    tar -xzvf euca2ools-$VERSION-centos-$ARCH.tar.gz 
+    cd  euca2ools-$VERSION-centos-$ARCH
     rpm -i --force * 
 
-    cp /tmp/euca2ools-1.2-centos-#{node[:rightimage][:arch]}.tar.gz /mnt/euca/tmp/.
-    cd /mnt/euca/tmp/.
-    tar -xzvf euca2ools-1.2-centos-#{node[:rightimage][:arch]}.tar.gz
-    chroot /mnt/euca rpm -i --force /tmp/euca2ools-1.2-centos-#{node[:rightimage][:arch]}/*
-    cd /mnt/euca_tmp
-  fi
-   
-
-
-## bundle kernel and ramdisk. Need to do this as the admin user
-
-  ## bundle kernel
-  euca-bundle-image  \
-    -i /mnt/euca/boot/$(ls #{node[:rightimage][:mount_dir]}/boot/ | grep vmlinuz | tail -n 1) \
-    -u #{node[:rightimage][:euca][:user_admin]} \
-    -c euca_x509_cert_admin  \
-    -k euca_x509_key_admin   \
-    -d . \
-    --ec2cert euca_cert  \
-    -r #{node[:rightimage][:arch]} \
-    -a #{node[:rightimage][:euca][:access_key_id_admin]} \
-    -s #{node[:rightimage][:euca][:secret_access_key_admin]} \
-    -U #{node[:rightimage][:euca][:euca_url]} \
-    -p #{image_name}.kernel \
-    --kernel true
-
-  ## bundle ramdisk
-  euca-bundle-image  \
-    -i /mnt/euca/boot/$(ls #{node[:rightimage][:mount_dir]}/boot/ | grep initrd | tail -n 1) \
-    -u #{node[:rightimage][:euca][:user_admin]} \
-    -c euca_x509_cert_admin  \
-    -k euca_x509_key_admin   \
-    -d . --ec2cert euca_cert  \
-    -r #{node[:rightimage][:arch]} \
-    -a #{node[:rightimage][:euca][:access_key_id_admin]} \
-    -s #{node[:rightimage][:euca][:secret_access_key_admin]} \
-    -U #{node[:rightimage][:euca][:euca_url]} \
-    -p #{image_name}.initrd \
-    --ramdisk true
-
-  ## upload kernel
-  euca-upload-bundle  \
-    -b #{image_name}_admin \
-    -m #{image_name}.kernel.manifest.xml  \
-    --ec2cert euca_cert \
-    -a #{node[:rightimage][:euca][:access_key_id_admin]} \
-    -s #{node[:rightimage][:euca][:secret_access_key_admin]} \
-    -U #{node[:rightimage][:euca][:walrus_url]} 
-
-  ## upload ramdisk
-  euca-upload-bundle  \
-    -b #{image_name}_admin \
-    -m #{image_name}.initrd.manifest.xml  \
-    --ec2cert euca_cert \
-    -a #{node[:rightimage][:euca][:access_key_id_admin]} \
-    -s #{node[:rightimage][:euca][:secret_access_key_admin]} \
-    -U #{node[:rightimage][:euca][:walrus_url]} 
-
-  ## register kernel
-  kernel_output=`euca-register  #{image_name}_admin/#{image_name}.kernel.manifest.xml \
-    -a #{node[:rightimage][:euca][:access_key_id_admin]} \
-    -s #{node[:rightimage][:euca][:secret_access_key_admin]}   \
-    -U  http://174.46.234.42:8773/services/Eucalyptus`
-  echo $kernel_optput
-
-  ## register ramdisk
-  ramdisk_output=`euca-register  #{image_name}_admin/#{image_name}.initrd.manifest.xml \
-    -a #{node[:rightimage][:euca][:access_key_id_admin]} \
-    -s #{node[:rightimage][:euca][:secret_access_key_admin]}   \
-    -U  http://174.46.234.42:8773/services/Eucalyptus`
-  echo $ramdisk_output
-
-  ## collect kernel and ramdisk id's
-  kernel_id=`echo -n $kernel_output | awk '{ print $2 }'`
-  ramdisk_id=`echo -n $ramdisk_output | awk '{ print $2 }'`
-
-  ## install euca2ools into image
-  #chroot /mnt/euca apt-get update 
-  #chroot /mnt/euca apt-get install -y euca2ools
-  rm -rf /mnt/euca/tmp/*
-  rm -rf /mnt/euca/proc/*
-
-  cp /mnt/euca_tmp/euca* /mnt/euca/tmp/.
-
-  ## have to bind /dev to make the euca2ools happy  for centos
-  if [ "#{node[:rightimage][:platform]}" == "centos" ]; then 
-    mount --bind /dev/ /mnt/euca/dev/
-  fi
-
-chroot /mnt/euca euca-bundle-vol  \
-  --arch #{node[:rightimage][:arch]} \
-  --privatekey /tmp/euca_x509_key \
-  --cert /tmp/euca_x509_cert \
-  --ec2cert /tmp/euca_cert \
-  --user #{node[:rightimage][:euca][:user]} \
-  --kernel $kernel_id \
-  --ramdisk $ramdisk_id \
-  --url #{node[:rightimage][:euca][:euca_url]} \
-  --exclude /tmp \
-  --destination /tmp/.  \
-  --prefix #{image_name}
-  #--generate-fstab \
-
-  cp /mnt/euca/tmp/#{image_name}* .
-
-  ## unmount bind
-  if [ "#{node[:rightimage][:platform]}" == "centos" ]; then 
-    umount /mnt/euca/dev/
-  fi
-
-
-euca-upload-bundle \
-  --bucket #{image_name} \
-  --manifest #{image_name}.manifest.xml \
-  --access-key #{node[:rightimage][:euca][:access_key_id]} \
-  --secret-key #{node[:rightimage][:euca][:secret_access_key]} \
-  --url #{node[:rightimage][:euca][:walrus_url]} 
-
-## register image
-image_out=`euca-register \
-  #{image_name}/#{image_name}.manifest.xml \
-  --url #{node[:rightimage][:euca][:euca_url]} \
-  -a #{node[:rightimage][:euca][:access_key_id]}  \
-  -s #{node[:rightimage][:euca][:secret_access_key]} `
-  echo $image_out
-
-
-# parse out image id
-image_id=`echo -n $image_out | awk '{ print $2 }'`
-echo new image id = $image_id
-
-  EOC
+    # install on GUEST_ROOT image
+    cd $GUEST_ROOT/tmp/.
+    export ARCH=#{node[:rightimage][:arch]}
+    cp /tmp/euca2ools-$VERSION-centos-$ARCH.tar.gz $GUEST_ROOT/tmp/.
+    tar -xzvf euca2ools-$VERSION-centos-$ARCH.tar.gz
+    chroot $GUEST_ROOT rpm -i --force /tmp/euca2ools-$VERSION-centos-$ARCH/*
+    
+  EOH
 end
+
+bash "configure for eucalyptus" do 
+  code <<-EOH
+    set -e 
+    set -x
+    GUEST_ROOT=#{guest_root}
+
+    ## insert cloud file
+    mkdir -p $GUEST_ROOT/etc/rightscale.d
+    echo -n "eucalyptus" > $GUEST_ROOT/etc/rightscale.d/cloud
+
+    # clean out packages
+    yum -c /tmp/yum.conf --installroot=$GUEST_ROOT -y clean all
+    
+    rm ${GUEST_ROOT}/var/lib/rpm/__*
+    chroot $GUEST_ROOT rpm --rebuilddb
+
+  EOH
+end
+
+bash "unmount proc & dev" do 
+  code <<-EOH
+    set -e 
+    set -x
+    GUEST_ROOT=#{guest_root}
+    umount -lf $GUEST_ROOT/proc || true
+    umount -lf $GUEST_ROOT/dev || true
+    umount -lf $GUEST_ROOT/sys || true
+  EOH
+end
+
+# Clean up GUEST_ROOT image
+rightimage guest_root do
+  action :sanitize
+end
+
+bash "sync fs" do 
+  code <<-EOH
+    set -x
+    sync
+  EOH
+end
+
+
+bash "package guest image" do 
+  cwd "/mnt"
+  code <<-EOH
+    set -e 
+    set -x
+    GUEST_ROOT=#{guest_root}
+    KERNEL_VERSION=#{node[:rightimage][:kernel_id]}
+    image_name=#{image_name}
+    cloud_package_root=#{cloud_package_root}
+    package_dir=$cloud_package_root/$image_name
+    rm -rf $package_dir
+    mkdir -p $package_dir
+    cd $cloud_package_root
+    mkdir $package_dir/xen-kernel
+    cp $GUEST_ROOT/boot/vmlinuz-$KERNEL_VERSION $package_dir/xen-kernel
+    cp $GUEST_ROOT/boot/initrd-$KERNEL_VERSION $package_dir/xen-kernel
+    cp #{target_raw_path} $package_dir/$image_name.img
+    tar czvf $image_name.tar.gz $image_name 
+  EOH
+end
+
+bash "unmount" do 
+  code <<-EOH
+    set -x
+    GUEST_ROOT=#{guest_root}
+    loopdev=#{loop_dev}  
+    umount -lf $GUEST_ROOT || true
+    losetup -d $loopdev
+  EOH
+end
+
